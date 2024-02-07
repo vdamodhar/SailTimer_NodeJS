@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet"
+	href="https://openlayers.org/en/v4.6.5/css/ol.css" type="text/css">
+    <title>Document</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://openlayers.org/en/v4.6.5/build/ol.js"
+	type="text/javascript"></script>
+</head>
+<body style="background-color: rgb(241, 238, 238); font-family: Arial, Helvetica, sans-serif;">
+    <div style="padding-left:2%; padding-top: 1%; height:100%">
+        <div>
+            <label for="ogc_coor">General Coordinates (leftlon, toplat, rightlon, bottomlat)</label> <br>
+            <input type="text" id="ogcleft" placeholder="Leftlon" value="-123.0"></input> 
+            <input type="text" id="ogctop" placeholder="Toplat" value="49.5"></input> 
+            <input type="text" id="ogcright" placeholder="Rightlon"  value="-122.5"></input>
+            <input type="text" id="ogcbottom" placeholder="Bottomlat" value="49.0"></input>
+        </div>
+        <br>       
+        <div>
+            <button onclick="ConvertCoors()" style="background-color: cornflowerblue;color: white;">Convert to SailTimer Coordinates</button>            
+        </div>
+        <br>
+        <div>
+            <label for="ogc_coor">SailTimer Coordinates (leftlon, toplat, rightlon, bottomlat)</label> <br>
+            <input type="text" id="stleft" disabled></input> 
+            <input type="text" id="sttop" disabled></input> 
+            <input type="text" id="stright" disabled></input>
+            <input type="text" id="stbottom" disabled></input>
+            <input type="date" id="calender" onchange="setDateTime()"></input>
+        </div>
+        <br>
+        <div>
+            <button onclick="STAPI()" style="background-color: cornflowerblue;color: white;">Run SailTimer API</button>
+        </div>        
+        <br>
+        <div>
+            <textarea name="" id="json" cols="50" rows="10" placeholder="Past JSON from SailTimer API.."></textarea>
+            <textarea name="" id="gjson" cols="50" rows="10" disabled placeholder="GeoJSON ... "></textarea>            
+        </div>       
+        <br>
+        <div>
+            <button onclick="convert()" style="background-color: cornflowerblue;color: white;">Convert to GeoJSON</button>
+            <button onclick="saveFile()" style="background-color: cornflowerblue;color: white;">Download</button>
+            <button onclick="addToMap()" style="background-color: cornflowerblue;color: white;">Add to Map</button>
+        </div>
+        <br>
+        <div id="map" class="map" style="height:300px; width:950px"></div>
+    </div>
+
+    <script>
+
+        let stleft = document.getElementById('ogcleft').value;
+        let sttop = document.getElementById('ogctop').value;
+        let stright = document.getElementById('ogcright').value;            
+        let stbottom = document.getElementById('ogcbottom').value;
+                
+        let year = 2024;
+        let month = 2;
+        let hour = 23;
+        let day = 8;
+
+        function convert()
+        {        
+            let jsontext = document.getElementById('json').value;
+            let gjsontext = document.getElementById('gjson');
+            let geojson = {
+                type: "FeatureCollection",
+                features:[],
+            }
+            let d1 = JSON.parse(jsontext);
+            // var d1 = JSON.parse(d);
+            for (let i = 0; i < d1['NOAA GFS'].data.length; i++) {
+                let ft = d1['NOAA GFS'].metadata.forecast_time
+                let rt = d1['NOAA GFS'].metadata.reference_time;
+                let lon =  d1['NOAA GFS'].data[i].longitude - 180;
+                let lat = d1['NOAA GFS'].data[i].latitude;
+                let ws =  d1['NOAA GFS'].data[i].windSpeed;
+                let wd =  d1['NOAA GFS'].data[i].windDirection;
+                            
+                geojson.features.push({
+                    "type":"Feature",
+                    "geometry":{
+                        "type": "Point",
+                        "coordinates":[
+                        lon,
+                        lat
+                        ]
+                    },
+                    "properties": {
+                    "forecast_time": ft,
+                    "referreference_time":rt,
+                    "windSpeed": ws,            
+                    "windDirection": wd
+                    }
+                })
+            }
+            gjsontext.value = JSON.stringify(geojson);
+        
+        }
+        function saveFile() {
+            const boxString1 = document.getElementById('gjson').value;
+            const myBlob = new Blob([`${boxString1}`], {
+                type: "text/plain"
+            });
+
+            const url = window.URL.createObjectURL(myBlob);
+            const anchor = document.createElement("a");
+            document.body.appendChild(anchor);
+            anchor.href = url;
+            anchor.download = "textfile.json";
+
+            anchor.click();
+            window.URL.revokeObjectURL(url);
+            anchor.remove();
+        }
+
+        function ConvertCoors()
+        {
+            document.getElementById('stleft').value = 180 + parseFloat(stleft);
+            document.getElementById('sttop').value = sttop;
+            document.getElementById('stright').value = 180 + parseFloat(stright);
+            document.getElementById('stbottom').value = stbottom;
+        }
+
+
+        function setDateTime()
+        {
+            let calVal = document.getElementById('calender').value;
+            year = calVal.split("-")[0]
+            month = calVal.split("-")[1]
+            day = calVal.split("-")[2]
+        }
+
+        function STAPI(){            
+            let toplat = document.getElementById('sttop').value;
+            let leftlon = document.getElementById('stleft').value;
+            let rightlon = document.getElementById('stright').value;
+            let bottomlat = document.getElementById('stbottom').value
+            let settings = {                
+                "url": "/st?" + 
+                "year=" + year + "&month=" + month + "&hour=" + hour + "&day=" + day + 
+                "&toplat="+ toplat + "&leftlon=" + leftlon + "&rightlon="+ rightlon +"&bottomlat="+ bottomlat,
+                "method": "GET"                
+            };
+
+            $.ajax(settings).done(function (response) {
+                document.getElementById('json').value = response;
+            });
+        }
+
+        let osm = new ol.layer.Tile({
+            source: new ol.source.OSM()
+        });
+
+        let map = new ol.Map({
+            target: 'map',
+            layers: [osm],
+            view: new ol.View({
+                center: ol.proj.fromLonLat([-82.67, 42.52]),
+                zoom: 15
+            })
+        });
+
+        function addToMap(){
+            const shaftred = new ol.style.RegularShape({
+            points: 2,
+            radius: 12,
+            stroke: new ol.style.Stroke({
+                width: 2,
+                color: 'red',
+            }),
+            rotateWithView: true,
+            });
+
+            const headred = new ol.style.RegularShape({
+            points: 3,
+            radius: 10,
+            fill: new ol.style.Fill({
+                color: 'red',
+            }),
+            rotateWithView: true,
+            });
+
+            const shaftgreen = new ol.style.RegularShape({
+            points: 2,
+            radius: 12,
+            stroke: new ol.style.Stroke({
+                width: 2,
+                color: 'green',
+            }),
+            rotateWithView: true,
+            });
+
+            const headgreen = new ol.style.RegularShape({
+            points: 3,
+            radius: 10,
+            fill: new ol.style.Fill({
+                color: 'green',
+            }),
+            rotateWithView: true,
+            });
+
+            const stylered = [new ol.style.Style({image: shaftred}), new ol.style.Style({image: headred})];
+            const stylegreen = [new ol.style.Style({image: shaftgreen}), new ol.style.Style({image: headgreen})];
+
+            const boxString1 = document.getElementById('gjson').value;
+            const myBlob = new Blob([`${boxString1}`], {
+                type: "text/plain"
+            });
+
+            const url = window.URL.createObjectURL(myBlob);
+            
+            let wmjsonsc = new ol.source.Vector(
+            {
+                crossOrigin: "Anonymous",
+                format: new ol.format.GeoJSON(),
+                url: url,
+                strategy: ol.loadingstrategy.bbox
+            }); 
+
+            wmjson = new ol.layer.Vector({
+                source: wmjsonsc,
+                style: function (feature) {
+                    const angle = feature.get('windDirection');
+                    const speed = feature.get('windSpeed');
+
+                    if (parseFloat(speed) > 12 ){
+                        shaftred.setRotation(angle);                 
+                        headred.setRotation(angle);
+                        return stylered;
+                    }
+                    if (parseFloat(speed) < 12 ){
+                        shaftgreen.setRotation(angle);                 
+                        headgreen.setRotation(angle);
+                        return stylegreen;
+                    }                    
+                },	   
+            });
+
+            let stleft = document.getElementById('ogcleft').value;
+            let sttop = document.getElementById('ogctop').value;
+            let stright = document.getElementById('ogcright').value;            
+            let stbottom = document.getElementById('ogcbottom').value;
+
+            map.addLayer(wmjson);
+
+            map.getView().setCenter(ol.proj.transform([parseFloat(stleft),parseFloat(sttop)], 
+            'EPSG:4326', 'EPSG:3857'));
+            map.getView().setZoom(7);
+        }
+    </script>
+</body>
+</html>
